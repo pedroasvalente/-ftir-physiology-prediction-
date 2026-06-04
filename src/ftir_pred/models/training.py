@@ -5,7 +5,6 @@ import mlflow
 import numpy as np
 import pandas as pd
 from loguru import logger
-from sklearn.inspection import permutation_importance
 from sklearn.model_selection import GridSearchCV
 from skopt import BayesSearchCV
 from tqdm import tqdm
@@ -18,39 +17,10 @@ from ftir_pred.models.baselines import BASELINE_MODELS
 from ftir_pred.models.configs import MODEL_CONFIGS
 from ftir_pred.models.evaluation import evaluate
 from ftir_pred.preprocessing.pipeline import (
-    get_pls_loadings,
+    get_pls_vip,
     make_pipeline,
     prefix_params,
 )
-
-
-def _feature_importances(model, X_test, y_test, model_name: str) -> np.ndarray:
-    inner = model.named_steps["model"]
-    if model_name == "xgboost":
-        booster = inner.get_booster()
-        score = booster.get_score(importance_type="gain")
-        n = X_test.shape[1]
-        imp = np.zeros(n)
-        for i in range(n):
-            imp[i] = score.get(f"f{i}", 0.0)
-        total = imp.sum()
-        return imp / total if total > 0 else imp
-    if model_name in ("mlp",):
-        perm = permutation_importance(model, X_test, y_test, random_state=RANDOM_SEED)
-        return perm.importances_mean
-    if hasattr(inner, "feature_importances_"):
-        return inner.feature_importances_
-    perm = permutation_importance(model, X_test, y_test, random_state=RANDOM_SEED)
-    return perm.importances_mean
-
-
-def _back_project(lv_importances: np.ndarray, pls_loadings) -> np.ndarray:
-    if pls_loadings is not None:
-        raw = np.abs(lv_importances @ pls_loadings.T)
-    else:
-        raw = np.abs(lv_importances)
-    total = raw.sum()
-    return raw / total if total > 0 else raw
 
 
 def _run_search(pipe, X_train, y_train, groups_train, params, search_type: str):
@@ -302,14 +272,8 @@ def run_experiment(config_path: str) -> None:
                     metrics = evaluate(y_test, y_pred)
                     best_pipe = search.best_estimator_
 
-                    try:
-                        lv_imp = _feature_importances(best_pipe, X_test, y_test, model_name)
-                        loadings = get_pls_loadings(best_pipe)
-                        wn_imp = _back_project(lv_imp, loadings)
-                        wn_imp_valid = wn_imp[water_mask]
-                    except Exception as exc:
-                        logger.warning(f"Importance computation failed for {target}/{sample_type}/{model_name}: {exc}")
-                        wn_imp_valid = np.zeros(len(valid_wavenumbers))
+                    vip = get_pls_vip(best_pipe)
+                    wn_imp_valid = vip[water_mask] if vip is not None else np.zeros(len(valid_wavenumbers))
 
                     mlflow.set_tag("target", target)
                     mlflow.set_tag("sample_type", sample_type)

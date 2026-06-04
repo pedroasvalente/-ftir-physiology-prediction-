@@ -1,0 +1,17 @@
+{
+  "experiment_name": "FTIR Physiology Prediction",
+  "run_name": "medium_test",
+  "targets_to_predict": [
+    "vo2max_absolute", "vo2max_relative",
+    "bodyfat_perc", "ffm_kg",
+    "hemoglobine",
+    "salivarycortisol"
+  ],
+  "sample_types": ["SERUM", "PLASMA"],
+  "timepoints": [null],
+  "model_types_to_train": ["random_forest", "xgboost"],
+  "searchs_hipermetrics": ["grid"],
+  "scale": [true],
+  "apply_pls": [true],
+  "n_components": [10]
+}

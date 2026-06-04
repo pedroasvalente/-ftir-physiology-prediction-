@@ -13,7 +13,7 @@
     "sample_types": ["CAPILAR", "PLASMA", "SALIVA", "SERUM", "URINE"],
     "timepoints": [null, [1, 2, 3]],
     "model_types_to_train": ["random_forest", "mlp", "decision_tree", "xgboost"],
-    "searchs_hipermetrics": ["grid", "bayes"],
+    "searchs_hipermetrics": ["grid"],
     "scale": [true],
     "apply_pls": [true, false],
     "n_components": [10]

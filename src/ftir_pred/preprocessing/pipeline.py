@@ -23,17 +23,38 @@ class PLSTransformer(BaseEstimator, TransformerMixin):
     def transform(self, X):
         return self._pls.transform(X)
 
-    @property
-    def x_loadings_(self) -> np.ndarray:
-        return self._pls.x_loadings_
+    def vip_scores(self) -> np.ndarray:
+        """
+        Variable Importance in Projection (VIP) scores.
+
+        VIP_j = sqrt(p * sum_h(W*_jh^2 * SSY_h) / SSY_total)
+
+        where W* are the normalised x-weights, and SSY_h is the variance of y
+        explained by component h. Scores > 1 are conventionally considered important.
+        """
+        T = self._pls.x_scores_     # (n_samples, n_components)
+        W = self._pls.x_weights_    # (n_features, n_components)
+        Q = self._pls.y_loadings_   # (n_targets,  n_components)
+        p = W.shape[0]
+
+        s = np.diag(T.T @ T @ Q.T @ Q)
+        total_s = s.sum()
+        if total_s == 0:
+            return np.ones(p)
+
+        col_norms = np.linalg.norm(W, axis=0, keepdims=True)
+        col_norms = np.where(col_norms == 0, 1.0, col_norms)
+        w_norm = W / col_norms
+
+        return np.sqrt(p * (w_norm ** 2 @ s) / total_s)
 
 
 def make_pipeline(model, scale: bool = True, apply_pls: bool = True, n_components: int = 10) -> Pipeline:
     """
     Build a sklearn Pipeline that wraps preprocessing + model.
 
-    By keeping scaling and PLS inside the pipeline, both are refitted on each
-    CV fold's training data — preventing spectral variance leakage.
+    Keeping scaling and PLS inside the pipeline ensures both are refitted on each
+    CV fold's training data, preventing spectral variance leakage.
     """
     if not scale and not apply_pls:
         raise ValueError("At least one of scale or apply_pls must be True.")
@@ -52,8 +73,8 @@ def prefix_params(params: dict, prefix: str = "model__") -> dict:
     return {f"{prefix}{k}": v for k, v in params.items()}
 
 
-def get_pls_loadings(pipeline: Pipeline) -> np.ndarray | None:
-    """Extract PLS x-loadings from a fitted pipeline (None if no PLS step)."""
+def get_pls_vip(pipeline: Pipeline) -> np.ndarray | None:
+    """Return VIP scores from the fitted PLS step, or None if no PLS step."""
     if "pls" in pipeline.named_steps:
-        return pipeline.named_steps["pls"].x_loadings_
+        return pipeline.named_steps["pls"].vip_scores()
     return None
