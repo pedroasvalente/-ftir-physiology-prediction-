@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ftir-physiology-prediction"
+version = "0.1.0"
+description = "FTIR-ATR spectroscopy + ML for physiological variable prediction"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy",
+    "pandas",
+    "scikit-learn",
+    "xgboost",
+    "scikit-optimize",
+    "scipy",
+    "statsmodels",
+    "mlflow",
+    "dagshub",
+    "streamlit",
+    "plotly",
+    "typer",
+    "loguru",
+    "python-dotenv",
+    "openpyxl",
+    "tqdm",
+    "matplotlib",
+]
+
+[project.scripts]
+ftir-pred = "ftir_pred.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

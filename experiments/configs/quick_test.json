@@ -1,0 +1,12 @@
+{
+    "experiment_name": "FTIR Physiology Prediction — Quick Test",
+    "run_name": "quick_test",
+    "targets_to_predict": ["vo2max_absolute"],
+    "sample_types": ["SERUM"],
+    "timepoints": [null],
+    "model_types_to_train": ["random_forest"],
+    "searchs_hipermetrics": ["grid"],
+    "scale": [true],
+    "apply_pls": [true],
+    "n_components": [10]
+}

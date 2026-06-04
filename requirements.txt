@@ -1,0 +1,16 @@
+numpy
+pandas
+scikit-learn
+xgboost
+scikit-optimize
+scipy
+statsmodels
+mlflow
+dagshub
+streamlit
+plotly
+typer
+loguru
+python-dotenv
+openpyxl
+tqdm

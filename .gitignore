@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Data (large raw files)
+data/raw/
+
+# Results: ignore heavy binaries; CSVs and JSONs are tracked for Streamlit
+results/**/*.pkl
+results/**/*.joblib
+results/**/*.pt
+results/**/*.pth
+
+# Models
+/models/
+/mlruns/
+/mlartifacts/
+/reports/
+
+# Environment
+.env
+
+# OS / IDE
+.DS_Store
+*.swp
+.vscode/
+.idea/
+
+# Tests / Build artifacts
+.pytest_cache/
+*.egg-info/
