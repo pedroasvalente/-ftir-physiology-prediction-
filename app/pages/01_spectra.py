@@ -37,6 +37,12 @@ if not sel_matrices:
     st.info("Select at least one matrix.")
     st.stop()
 
+def _hex_to_rgba(hex_color: str, alpha: float = 0.15) -> str:
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
+
 fig = go.Figure()
 
 for matrix in sel_matrices:
@@ -49,6 +55,7 @@ for matrix in sel_matrices:
     mean = X.mean(axis=0)
     sd = X.std(axis=0)
     color = matrix_colors.get(matrix, "#888888")
+    fill_color = _hex_to_rgba(color) if color.startswith("#") else color.replace(")", ",0.15)").replace("rgb(", "rgba(")
     fig.add_trace(go.Scatter(
         x=wavenumbers.tolist(), y=mean.tolist(), mode="lines",
         name=matrix, line=dict(color=color, width=1.5),
@@ -57,8 +64,7 @@ for matrix in sel_matrices:
         fig.add_trace(go.Scatter(
             x=wavenumbers.tolist() + wavenumbers.tolist()[::-1],
             y=(mean + sd).tolist() + (mean - sd).tolist()[::-1],
-            fill="toself", fillcolor=color.replace(")", ",0.15)").replace("rgb", "rgba")
-                if color.startswith("rgb") else color + "26",
+            fill="toself", fillcolor=fill_color,
             line=dict(width=0), showlegend=False,
         ))
 
