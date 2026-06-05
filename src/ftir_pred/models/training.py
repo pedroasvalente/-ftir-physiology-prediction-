@@ -181,8 +181,9 @@ def run_experiment(config_path: str) -> None:
     seen: set = set()
     unique_combos = []
     for c in combo_iter:
-        if c not in seen:
-            seen.add(c)
+        key = (c[0], c[1], _tp_str(c[2]), c[3], c[4], c[5], _nc_str(c[6]), c[7])
+        if key not in seen:
+            seen.add(key)
             unique_combos.append(c)
 
     split_cache: dict = {}
