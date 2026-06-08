@@ -23,8 +23,14 @@ with tab_ml_vs_baseline:
     if "is_baseline" not in df.columns:
         st.info("No baseline column in results.")
     else:
+        r2_min = st.slider("Clip R² below", min_value=-10.0, max_value=0.0, value=-2.0, step=0.5,
+                           help="Hide extreme outliers to keep the chart readable")
+        n_clipped = (df["r2"] < r2_min).sum()
+        if n_clipped:
+            st.caption(f"{n_clipped} rows with R² < {r2_min} hidden from plot (catastrophic failures, usually n_test < 10).")
+        plot_df = df[df["r2"] >= r2_min]
         fig = px.box(
-            df,
+            plot_df,
             x="model",
             y="r2",
             color="is_baseline",
@@ -32,6 +38,8 @@ with tab_ml_vs_baseline:
             labels={"r2": "R²", "model": "Model", "is_baseline": "Baseline"},
             points="all",
         )
+        fig.add_hline(y=0, line_dash="dash", line_color="red", opacity=0.5,
+                      annotation_text="R²=0 (baseline floor)", annotation_position="bottom right")
         fig.update_layout(height=450)
         st.plotly_chart(fig, use_container_width=True)
 
