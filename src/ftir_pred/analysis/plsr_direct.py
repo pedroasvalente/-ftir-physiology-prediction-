@@ -1,17 +1,7 @@
 """
-PLS-R (Partial Least Squares Regression) direct regression.
+PLS-R direct regression — standard chemometric baseline.
 
-This is the standard quimiometric baseline expected by reviewers of FTIR spectroscopy
-papers. It differs from the PLS-as-dimensionality-reduction used in the ML pipeline:
-here PLS itself IS the predictor, trained with person-aware GroupKFold cross-validation.
-
-Returns R², RMSE and VIP scores per number of components, enabling selection of
-the optimal component count via cross-validation.
-
-Reference:
-  Wold, S., Sjöström, M., & Eriksson, L. (2001). PLS-regression: a basic tool of
-  chemometrics. Chemometrics and Intelligent Laboratory Systems, 58(2), 109–130.
-  https://doi.org/10.1016/S0169-7439(01)00155-1
+Reference: Wold et al. (2001) Chemometrics and Intelligent Laboratory Systems, 58(2), 109-130.
 """
 
 from __future__ import annotations
@@ -27,68 +17,37 @@ from sklearn.model_selection import GroupKFold
 from sklearn.preprocessing import StandardScaler
 
 from ftir_pred.config import RESULTS_DIR, TRAINING_DATA_PATH
-from ftir_pred.data.config import REGRESSION_TARGETS, SAMPLE_TYPES, get_target_group
-from ftir_pred.data.loader import filter_samples, load_csv
+from ftir_pred.data.config import REGRESSION_TARGETS, SAMPLE_TYPES, WATER_REGION, get_target_group
+from ftir_pred.data.loader import filter_samples, get_ftir_columns, load_csv
 from ftir_pred.data.splits import split_by_person
 
 
 def _vip_scores(pls: PLSRegression) -> np.ndarray:
-    """
-    Variable Importance in Projection (VIP) for a fitted PLSRegression.
-
-    VIP_j = sqrt(p * Σ_h (w*_jh² · SSY_h) / SSY_total)
-    """
-    T = pls.x_scores_
-    W = pls.x_weights_
-    Q = pls.y_loadings_
+    T, W, Q = pls.x_scores_, pls.x_weights_, pls.y_loadings_
     p = W.shape[0]
-
     s = np.diag(T.T @ T @ Q.T @ Q)
     total_s = s.sum()
     if total_s == 0:
         return np.ones(p)
-
     col_norms = np.linalg.norm(W, axis=0, keepdims=True)
     col_norms = np.where(col_norms == 0, 1.0, col_norms)
-    w_norm = W / col_norms
-
-    return np.sqrt(p * (w_norm ** 2 @ s) / total_s)
+    return np.sqrt(p * ((W / col_norms) ** 2 @ s) / total_s)
 
 
-def run_plsr_cv(
-    X: np.ndarray,
-    y: np.ndarray,
-    groups: np.ndarray,
-    max_components: int = 15,
-    n_splits: int = 5,
-) -> pd.DataFrame:
-    """
-    Person-aware GroupKFold cross-validation for PLS-R across 1..max_components.
-
-    Returns DataFrame with columns: n_components, r2_cv, rmse_cv, r2_std, rmse_std.
-    """
+def run_plsr_cv(X, y, groups, max_components=15, n_splits=5) -> pd.DataFrame:
     cv = GroupKFold(n_splits=n_splits)
     rows = []
-
     for n_comp in range(1, max_components + 1):
-        r2_folds  = []
-        rmse_folds = []
-
-        for train_idx, test_idx in cv.split(X, y, groups=groups):
-            X_tr, X_te = X[train_idx], X[test_idx]
-            y_tr, y_te = y[train_idx], y[test_idx]
-
-            scaler = StandardScaler()
-            X_tr = scaler.fit_transform(X_tr)
-            X_te = scaler.transform(X_te)
-
+        r2_folds, rmse_folds = [], []
+        for tr, te in cv.split(X, y, groups=groups):
+            sc = StandardScaler()
+            X_tr = sc.fit_transform(X[tr])
+            X_te = sc.transform(X[te])
             pls = PLSRegression(n_components=n_comp)
-            pls.fit(X_tr, y_tr)
+            pls.fit(X_tr, y[tr])
             y_pred = pls.predict(X_te).ravel()
-
-            r2_folds.append(r2_score(y_te, y_pred))
-            rmse_folds.append(float(np.sqrt(mean_squared_error(y_te, y_pred))))
-
+            r2_folds.append(r2_score(y[te], y_pred))
+            rmse_folds.append(float(np.sqrt(mean_squared_error(y[te], y_pred))))
         rows.append({
             "n_components": n_comp,
             "r2_cv":    round(float(np.mean(r2_folds)), 4),
@@ -96,70 +55,34 @@ def run_plsr_cv(
             "rmse_cv":  round(float(np.mean(rmse_folds)), 4),
             "rmse_std": round(float(np.std(rmse_folds)),  4),
         })
-
     return pd.DataFrame(rows)
 
 
-def run_plsr_final(
-    X_train: np.ndarray,
-    X_test:  np.ndarray,
-    y_train: np.ndarray,
-    y_test:  np.ndarray,
-    n_components: int,
-) -> dict:
-    """
-    Fit final PLS-R model on train, evaluate on test.
-
-    Returns dict with r2, rmse, y_pred, vip_scores.
-    """
-    scaler = StandardScaler()
-    X_tr = scaler.fit_transform(X_train)
-    X_te = scaler.transform(X_test)
-
+def run_plsr_final(X_train, X_test, y_train, y_test, n_components) -> dict:
+    sc = StandardScaler()
+    X_tr = sc.fit_transform(X_train)
+    X_te = sc.transform(X_test)
     pls = PLSRegression(n_components=n_components)
     pls.fit(X_tr, y_train)
     y_pred = pls.predict(X_te).ravel()
-
     return {
-        "r2":         round(float(r2_score(y_test, y_pred)), 4),
-        "rmse":       round(float(np.sqrt(mean_squared_error(y_test, y_pred))), 4),
-        "y_test":     y_test.tolist(),
-        "y_pred":     y_pred.tolist(),
-        "vip_scores": _vip_scores(pls).tolist(),
+        "r2":           round(float(r2_score(y_test, y_pred)), 4),
+        "rmse":         round(float(np.sqrt(mean_squared_error(y_test, y_pred))), 4),
+        "y_test":       y_test.tolist(),
+        "y_pred":       y_pred.tolist(),
+        "vip_scores":   _vip_scores(pls).tolist(),
         "n_components": n_components,
     }
 
 
 def run_all_plsr(
-    targets: list[str] | None = None,
-    sample_types: list[str] | None = None,
-    max_components: int = 15,
-    n_splits: int = 5,
-    timepoints: list[int] | None = None,
-    out_dir: Path | None = None,
-    data_path: str | None = None,
+    targets=None, sample_types=None, max_components=15,
+    n_splits=5, timepoints=None, out_dir=None, data_path=None,
 ) -> dict:
-    """
-    Run PLS-R for all target × sample_type combinations.
-
-    For each combo:
-      1. Person-aware train/test split (80/20)
-      2. GroupKFold CV over 1..max_components to select optimal n_comp
-      3. Final fit on train, evaluate on test
-      4. VIP scores extracted
-
-    Saves results to out_dir/plsr_results.json and out_dir/plsr_summary.csv.
-
-    Returns nested dict: {target: {sample_type: {...}}}
-    """
-    path = data_path or str(TRAINING_DATA_PATH)
-    df = load_csv(path)
-
-    from ftir_pred.data.loader import get_ftir_columns
-    wavenumbers_all = np.array([float(c) for c in get_ftir_columns(df).tolist()])
-    from ftir_pred.data.config import WATER_REGION
-    water_mask = (wavenumbers_all < WATER_REGION[0]) | (wavenumbers_all > WATER_REGION[1])
-    valid_wavenumbers = wavenumbers_all[water_mask]
+    df = load_csv(data_path or str(TRAINING_DATA_PATH))
+    wn_all = np.array([float(c) for c in get_ftir_columns(df).tolist()])
+    water_mask = (wn_all < WATER_REGION[0]) | (wn_all > WATER_REGION[1])
+    valid_wn = wn_all[water_mask]
 
     targets      = targets      or REGRESSION_TARGETS
     sample_types = sample_types or SAMPLE_TYPES
@@ -179,25 +102,20 @@ def run_all_plsr(
             X, y, groups = result
             X_arr = X.values.astype(float)
             y_arr = y.values.astype(float)
-            g_arr = groups.values
 
-            from ftir_pred.data.splits import split_by_person
             X_train, X_test, y_train, y_test, groups_train = split_by_person(
-                X_arr, y_arr, g_arr, test_size=0.2
+                X_arr, y_arr, groups.values, test_size=0.2
             )
-
             if len(y_test) < n_splits:
                 continue
 
             cv_df = run_plsr_cv(X_train, y_train, groups_train,
-                                 max_components=max_components, n_splits=n_splits)
-
+                                max_components=max_components, n_splits=n_splits)
             best_nc = int(cv_df.loc[cv_df["r2_cv"].idxmax(), "n_components"])
-
             final = run_plsr_final(X_train, X_test, y_train, y_test, n_components=best_nc)
 
             vip_full = np.array(final["vip_scores"])
-            vip_valid = vip_full[water_mask] if len(vip_full) == len(wavenumbers_all) else vip_full
+            vip_valid = vip_full[water_mask] if len(vip_full) == len(wn_all) else vip_full
 
             all_results[target][st] = {
                 "r2":           final["r2"],
@@ -209,10 +127,9 @@ def run_all_plsr(
                 "cv_curve":     cv_df.to_dict("records"),
                 "y_test":       final["y_test"],
                 "y_pred":       final["y_pred"],
-                "wavenumbers":  valid_wavenumbers.tolist(),
+                "wavenumbers":  valid_wn.tolist(),
                 "vip_scores":   vip_valid.tolist(),
             }
-
             summary_rows.append({
                 "target":       target,
                 "target_group": get_target_group(target),
@@ -224,18 +141,9 @@ def run_all_plsr(
                 "n_train":      len(y_train),
                 "n_test":       len(y_test),
             })
+            print(f"  {target}/{st}: R²={final['r2']:.3f}, n_comp={best_nc}")
 
-            print(f"  {target} / {st}: R²={final['r2']:.3f}, "
-                  f"RMSE={final['rmse']:.3f}, n_comp={best_nc}")
-
-    out_json = out_dir / "plsr_results.json"
-    with open(out_json, "w") as fh:
-        json.dump(all_results, fh)
-
-    out_csv = out_dir / "plsr_summary.csv"
-    pd.DataFrame(summary_rows).to_csv(out_csv, index=False)
-
-    print(f"\nPLS-R done → {out_json}")
-    print(f"Summary    → {out_csv}")
-
+    (out_dir / "plsr_results.json").write_text(json.dumps(all_results))
+    pd.DataFrame(summary_rows).to_csv(out_dir / "plsr_summary.csv", index=False)
+    print(f"\nSaved → {out_dir}")
     return all_results
