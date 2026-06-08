@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.signal import savgol_filter
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.pipeline import Pipeline
@@ -49,7 +50,36 @@ class PLSTransformer(BaseEstimator, TransformerMixin):
         return np.sqrt(p * (w_norm ** 2 @ s) / total_s)
 
 
-def make_pipeline(model, scale: bool = True, apply_pls: bool = True, n_components: int = 10) -> Pipeline:
+class SNVTransformer(BaseEstimator, TransformerMixin):
+    """Standard Normal Variate: centres and scales each spectrum individually."""
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        mean = X.mean(axis=1, keepdims=True)
+        std = X.std(axis=1, keepdims=True)
+        std = np.where(std == 0, 1.0, std)
+        return (X - mean) / std
+
+
+class SavitzkyGolayDerivative(BaseEstimator, TransformerMixin):
+    """2nd derivative via Savitzky-Golay filter — removes baseline and sharpens peaks."""
+
+    def __init__(self, window_length: int = 11, polyorder: int = 2, deriv: int = 2):
+        self.window_length = window_length
+        self.polyorder = polyorder
+        self.deriv = deriv
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        return savgol_filter(X, self.window_length, self.polyorder, deriv=self.deriv, axis=1)
+
+
+def make_pipeline(model, scale: bool = True, apply_pls: bool = True,
+                  n_components: int = 10, spectral_preproc: str = "none") -> Pipeline:
     """
     Build a sklearn Pipeline that wraps preprocessing + model.
 
@@ -60,6 +90,10 @@ def make_pipeline(model, scale: bool = True, apply_pls: bool = True, n_component
         raise ValueError("At least one of scale or apply_pls must be True.")
 
     steps = []
+    if "snv" in spectral_preproc:
+        steps.append(("snv", SNVTransformer()))
+    if "derivative" in spectral_preproc:
+        steps.append(("derivative", SavitzkyGolayDerivative()))
     if scale:
         steps.append(("scaler", StandardScaler()))
     if apply_pls:

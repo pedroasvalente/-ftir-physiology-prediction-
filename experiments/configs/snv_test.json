@@ -1,0 +1,16 @@
+{
+    "experiment_name": "FTIR Physiology Prediction",
+    "run_name": "snv_preproc_test",
+    "targets_to_predict": [
+        "vo2max_absolute", "vo2max_bpm",
+        "respiratorycompensation_bpm", "anaerobicthreshold_relative"
+    ],
+    "sample_types": ["CAPILAR", "SERUM"],
+    "timepoints": [null],
+    "model_types_to_train": ["random_forest", "xgboost"],
+    "searchs_hipermetrics": ["grid"],
+    "scale": [true],
+    "apply_pls": [true],
+    "n_components": [10],
+    "spectral_preproc": ["none", "snv", "derivative", "snv+derivative"]
+}

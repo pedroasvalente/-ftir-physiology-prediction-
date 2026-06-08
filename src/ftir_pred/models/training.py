@@ -112,6 +112,7 @@ def run_experiment(config_path: str) -> None:
     scale_options = cfg.get("scale", [True])
     pls_options = cfg.get("apply_pls", [True])
     n_components_list = cfg.get("n_components", [10])
+    spectral_preproc_list = cfg.get("spectral_preproc", ["none"])
     experiment_name = cfg.get("experiment_name", "FTIR Physiology Prediction")
     run_slug = cfg.get("run_name", config_path.stem)
 
@@ -144,6 +145,7 @@ def run_experiment(config_path: str) -> None:
                     row["model"], row["search"],
                     bool(row["scale"]), bool(row["apply_pls"]),
                     _nc_str(row.get("n_components")),
+                    str(row.get("spectral_preproc", "none")),
                 ))
         logger.info(
             f"Checkpoint found — resuming. "
@@ -166,7 +168,7 @@ def run_experiment(config_path: str) -> None:
 
     # --- Build combo list ---
     combo_iter = [
-        (target, sample_type, timepoints, model_name, scale, apply_pls, n_comp, search_type)
+        (target, sample_type, timepoints, model_name, scale, apply_pls, n_comp, search_type, preproc)
         for target in targets
         for sample_type in sample_types
         for timepoints in timepoints_list
@@ -175,13 +177,14 @@ def run_experiment(config_path: str) -> None:
         for apply_pls in pls_options
         for n_comp in (n_components_list if apply_pls else [None])
         for search_type in search_types
+        for preproc in spectral_preproc_list
         if not (not scale and not apply_pls)
     ]
 
     seen: set = set()
     unique_combos = []
     for c in combo_iter:
-        key = (c[0], c[1], _tp_str(c[2]), c[3], c[4], c[5], _nc_str(c[6]), c[7])
+        key = (c[0], c[1], _tp_str(c[2]), c[3], c[4], c[5], _nc_str(c[6]), c[7], c[8])
         if key not in seen:
             seen.add(key)
             unique_combos.append(c)
@@ -195,8 +198,8 @@ def run_experiment(config_path: str) -> None:
         mlflow.set_tag("run_slug", run_slug)
 
         with tqdm(unique_combos, desc="Training") as bar:
-            for (target, sample_type, timepoints, model_name, scale, apply_pls, n_comp, search_type) in bar:
-                bar.set_postfix(target=target, matrix=sample_type, model=model_name, search=search_type)
+            for (target, sample_type, timepoints, model_name, scale, apply_pls, n_comp, search_type, preproc) in bar:
+                bar.set_postfix(target=target, matrix=sample_type, model=model_name, preproc=preproc)
 
                 split_key = (target, sample_type, _tp_str(timepoints))
 
@@ -242,14 +245,15 @@ def run_experiment(config_path: str) -> None:
                     target, sample_type, _tp_str(timepoints),
                     model_cfg.display_name, search_type,
                     scale, apply_pls,
-                    _nc_str(n_comp),
+                    _nc_str(n_comp), preproc,
                 )
                 if combo_done_key in done_combos:
                     continue
 
                 try:
                     pipe = make_pipeline(model_cfg.get_model(), scale=scale, apply_pls=apply_pls,
-                                         n_components=n_comp if apply_pls else 10)
+                                         n_components=n_comp if apply_pls else 10,
+                                         spectral_preproc=preproc)
                 except ValueError as exc:
                     logger.warning(str(exc))
                     continue
@@ -329,6 +333,7 @@ def run_experiment(config_path: str) -> None:
                         "scale": scale,
                         "apply_pls": apply_pls,
                         "n_components": n_comp,
+                        "spectral_preproc": preproc,
                         "is_baseline": False,
                         **metrics,
                     })
