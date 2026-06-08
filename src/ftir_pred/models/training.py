@@ -297,23 +297,27 @@ def run_experiment(config_path: str) -> None:
 
                     store_key = f"{target}|{sample_type}|{model_cfg.display_name}|{search_type}"
                     if metrics["r2"] >= R2_THRESHOLD:
-                        predictions_store[store_key] = {
-                            "y_test": y_test.tolist(),
-                            "y_pred": y_pred.tolist(),
-                            "target": target,
-                            "sample_type": sample_type,
-                            "model": model_cfg.display_name,
-                            "search": search_type,
-                        }
-                        importances_store[store_key] = {
-                            "wavenumbers": valid_wavenumbers.tolist(),
-                            "importances": wn_imp_valid.tolist(),
-                            "target": target,
-                            "sample_type": sample_type,
-                            "model": model_cfg.display_name,
-                            "search": search_type,
-                            "r2": metrics["r2"],
-                        }
+                        existing_r2 = predictions_store.get(store_key, {}).get("r2", -np.inf)
+                        if metrics["r2"] >= existing_r2:
+                            predictions_store[store_key] = {
+                                "y_test": y_test.tolist(),
+                                "y_pred": y_pred.tolist(),
+                                "target": target,
+                                "sample_type": sample_type,
+                                "model": model_cfg.display_name,
+                                "search": search_type,
+                                "r2": metrics["r2"],
+                            }
+                            if vip is not None:
+                                importances_store[store_key] = {
+                                    "wavenumbers": valid_wavenumbers.tolist(),
+                                    "importances": wn_imp_valid.tolist(),
+                                    "target": target,
+                                    "sample_type": sample_type,
+                                    "model": model_cfg.display_name,
+                                    "search": search_type,
+                                    "r2": metrics["r2"],
+                                }
 
                     all_results.append({
                         "target": target,
