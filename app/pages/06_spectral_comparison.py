@@ -56,6 +56,72 @@ if not all_regions:
     st.info("No VIP regions found.")
     st.stop()
 
+# ── Full-spectrum overview ─────────────────────────────────────────────────────
+with st.expander("Full-spectrum overview — mean ± SD (high vs low VO₂max)", expanded=False):
+    @st.cache_data
+    def _load_all_matrices(matrices_list: tuple, grp_col: str, hi_lbl, lo_lbl):
+        from ftir_pred.data.config import WATER_REGION
+        df_raw = load_csv(str(TRAINING_DATA_PATH))
+        ftir_cols = get_ftir_columns(df_raw)
+        wn_all = np.array([float(c) for c in ftir_cols])
+        water = (wn_all < WATER_REGION[0]) | (wn_all > WATER_REGION[1])
+        wn_clean = wn_all[water]
+        results = {}
+        for mat in matrices_list:
+            sub = df_raw[df_raw["sample_type"] == mat].copy()
+            valid = sub[grp_col].notna() & sub[ftir_cols].notna().all(axis=1)
+            sub = sub[valid]
+            X = sub[ftir_cols].values.astype(float)[:, water]
+            grp = sub[grp_col].values
+            results[mat] = {
+                "wn": wn_clean,
+                "high": X[grp == hi_lbl],
+                "low": X[grp == lo_lbl],
+            }
+        return results
+
+    all_mat_data = _load_all_matrices(
+        tuple(sorted(data.keys())), group_col, high_label, low_label
+    )
+
+    fig_full = go.Figure()
+    for mat, md in all_mat_data.items():
+        mat_color = matrix_colors.get(mat, "#2166ac")
+        wn_m = md["wn"]
+        for arr, dash, label in [(md["high"], "solid", "High"), (md["low"], "dash", "Low")]:
+            if len(arr) == 0:
+                continue
+            mn = arr.mean(axis=0)
+            sd = arr.std(axis=0)
+            h = mat_color.lstrip("#")
+            r_, g_, b_ = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+            fig_full.add_trace(go.Scatter(
+                x=np.concatenate([wn_m, wn_m[::-1]]).tolist(),
+                y=np.concatenate([mn + sd, (mn - sd)[::-1]]).tolist(),
+                fill="toself",
+                fillcolor=f"rgba({r_},{g_},{b_},0.08)",
+                mode="none", showlegend=False, hoverinfo="skip",
+            ))
+            fig_full.add_trace(go.Scatter(
+                x=wn_m.tolist(), y=mn.tolist(),
+                mode="lines",
+                line=dict(color=mat_color, width=1.8, dash=dash),
+                name=f"{mat} — {label}",
+                hovertemplate=f"{mat} {label}: %{{y:.5f}}<extra></extra>",
+            ))
+
+    fig_full.update_layout(
+        xaxis=dict(title="Wavenumber (cm⁻¹)", autorange="reversed",
+                   showgrid=True, gridcolor="#e5e5e5"),
+        yaxis=dict(title="Absorbance (a.u.)", showgrid=True, gridcolor="#e5e5e5"),
+        plot_bgcolor="white", paper_bgcolor="white",
+        height=380, hovermode="x unified",
+        margin=dict(l=60, r=20, t=30, b=60),
+        legend=dict(font=dict(size=10)),
+    )
+    st.plotly_chart(fig_full, use_container_width=True)
+    st.caption("Solid = High VO₂max · Dashed = Low VO₂max · Shading = ± 1 SD")
+
 # Summary table
 st.subheader("VIP Spectral Regions")
 reg_df = pd.DataFrame([{

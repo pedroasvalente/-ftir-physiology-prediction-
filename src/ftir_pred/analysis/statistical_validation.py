@@ -4,12 +4,6 @@ from scipy.stats import pearsonr
 
 
 def bland_altman(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
-    """
-    Bland-Altman agreement analysis.
-
-    Returns mean difference (bias), limits of agreement (±1.96 SD),
-    and arrays for the plot.
-    """
     y_true = np.asarray(y_true, dtype=float)
     y_pred = np.asarray(y_pred, dtype=float)
 
@@ -36,10 +30,6 @@ def pearson_summary(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
 
 
 def validation_table(results_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Summarise Pearson r, R², RMSE and 95% CI per target × sample_type × model.
-    Filters to best model per (target, sample_type) by R².
-    """
     non_baseline = results_df[~results_df["is_baseline"]]
     idx = non_baseline.groupby(["target", "sample_type"])["r2"].idxmax()
     best = non_baseline.loc[idx].copy()

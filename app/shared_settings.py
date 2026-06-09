@@ -1,6 +1,3 @@
-"""
-Shared appearance settings and data loading for all Streamlit pages.
-"""
 import os
 from pathlib import Path
 
@@ -9,30 +6,35 @@ import streamlit as st
 
 RESULTS_DIR = Path(__file__).resolve().parents[1] / "results"
 
-DEFAULT_GROUP_COLORS = {
-    "cardiorespiratory": "#e41a1c",
-    "body_composition": "#377eb8",
-    "cbc": "#4daf4a",
-    "hormonal": "#984ea3",
-    "other": "#999999",
-}
-
 DEFAULT_MATRIX_COLORS = {
     "CAPILAR": "#1b9e77",
-    "PLASMA": "#d95f02",
-    "SALIVA": "#7570b3",
-    "SERUM": "#e7298a",
-    "URINE": "#66a61e",
+    "PLASMA":  "#d95f02",
+    "SALIVA":  "#7570b3",
+    "SERUM":   "#e7298a",
+    "URINE":   "#66a61e",
 }
 
 DEFAULT_MODEL_COLORS = {
     "Random Forest": "#2166ac",
     "MLP Regressor": "#d6604d",
     "Decision Tree": "#4dac26",
-    "XGBoost": "#8073ac",
-    "Dummy (mean)": "#aaaaaa",
-    "Ridge": "#f4a442",
-    "PLS (3 comp)": "#a6cee3",
+    "XGBoost":       "#8073ac",
+    "Dummy (mean)":  "#aaaaaa",
+    "Ridge":         "#f4a442",
+    "PLS (3 comp)":  "#a6cee3",
+}
+
+DEFAULT_GROUP_COLORS = {
+    "football":    "#e41a1c",
+    "sedentary":   "#377eb8",
+    "ultrarunning":"#4daf4a",
+}
+
+TARGET_GROUP_COLORS = {
+    "cardiorespiratory": "#d73027",
+    "body_composition":  "#4575b4",
+    "cbc":               "#1a9850",
+    "hormonal":          "#8073ac",
 }
 
 
@@ -60,26 +62,54 @@ def render_appearance_sidebar(show_matrices=True, show_models=False):
                 st.session_state.model_colors[key] = st.color_picker(
                     key, value=st.session_state.model_colors[key], key=f"mc_{key}"
                 )
+    _sidebar_footer()
+    return st.session_state.matrix_colors, st.session_state.model_colors
+
+
+def _sidebar_footer():
     st.sidebar.divider()
     st.sidebar.markdown(
         """
         <small>
         © 2025 Pedro Afonso Valente<br>
         University of Coimbra<br>
+        <a href="https://github.com/pedroasvalente/ftir-physiology-prediction" target="_blank">
+        GitHub repository</a><br>
         Licensed under CC BY-NC-ND 4.0
         </small>
         """,
         unsafe_allow_html=True,
     )
-    return st.session_state.matrix_colors, st.session_state.model_colors
+
+
+def _render_run_info(df: pd.DataFrame, run_label: str):
+    matrices = sorted(df["sample_type"].dropna().unique()) if "sample_type" in df.columns else []
+    models   = sorted(df["model"].dropna().unique())       if "model"       in df.columns else []
+    tps      = sorted(df["timepoints"].fillna("all").unique()) if "timepoints" in df.columns else []
+
+    with st.sidebar.expander("ℹ️ Loaded run", expanded=True):
+        st.markdown(f"**Run:** `{run_label}`")
+        st.markdown(f"**Total rows:** {len(df)}")
+        if matrices:
+            st.markdown(f"**Matrices:** {', '.join(matrices)}")
+        if models:
+            st.markdown(f"**Models ({len(models)}):** {', '.join(models)}")
+        if "r2" in df.columns:
+            ml = df[~df["is_baseline"].astype(bool)] if "is_baseline" in df.columns else df
+            if not ml.empty:
+                best_r2  = ml["r2"].max()
+                best_row = ml.loc[ml["r2"].idxmax()]
+                st.markdown(
+                    f"**Best R²:** `{best_r2:.3f}` "
+                    f"<small>({best_row.get('target','?')} / {best_row.get('sample_type','?')})</small>",
+                    unsafe_allow_html=True,
+                )
 
 
 @st.cache_data(ttl=300)
-def load_results(results_dir: str = str(RESULTS_DIR)) -> pd.DataFrame:
+def _load_all_results(results_dir: str) -> pd.DataFrame:
     base = Path(results_dir)
     csv_files = sorted(base.rglob("results_summary.csv"))
-    if not csv_files:
-        return pd.DataFrame()
     frames = []
     for f in csv_files:
         try:
@@ -91,25 +121,33 @@ def load_results(results_dir: str = str(RESULTS_DIR)) -> pd.DataFrame:
     if not frames:
         return pd.DataFrame()
     df = pd.concat(frames, ignore_index=True)
-    for col in ["r2", "rmse", "mae", "mape", "pearson_r"]:
+    for col in ["r2", "rmse", "mae", "mape", "pearson_r", "pearson_p"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
+    if "is_baseline" in df.columns:
+        df["is_baseline"] = df["is_baseline"].astype(bool)
     return df
 
 
 def render_data_sidebar() -> pd.DataFrame | None:
+    _init_defaults()
     with st.sidebar:
         st.header("Data")
-        df = load_results()
-        if df.empty:
+        df_all = _load_all_results(str(RESULTS_DIR))
+        if df_all.empty:
             st.error("No results found. Run a training experiment first.")
+            _sidebar_footer()
             return None
 
-        runs = sorted(df["run"].unique()) if "run" in df.columns else []
+        runs = sorted(df_all["run"].unique()) if "run" in df_all.columns else []
         if runs:
-            selected = st.selectbox("Run", ["All"] + runs)
-            if selected != "All":
-                df = df[df["run"] == selected]
+            sel = st.selectbox("Run", ["All"] + runs)
+            df = df_all[df_all["run"] == sel].copy() if sel != "All" else df_all
+            run_label = sel
+        else:
+            df = df_all
+            run_label = "All runs"
 
-        st.caption(f"{len(df)} rows · {df['target'].nunique() if 'target' in df.columns else '?'} targets")
+    _render_run_info(df, run_label)
+    _sidebar_footer()
     return df

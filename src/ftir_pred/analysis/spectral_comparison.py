@@ -1,10 +1,6 @@
 """
 Spectral region comparison: high vs low VO2max.
-
-Replicates the approach used in Study 1 (Valente et al.):
-  1. VIP-guided region detection: contiguous wavenumber bands in the top N% of VIP
-  2. Per-sample spectral AUC (trapezoidal integral over each region)
-  3. Pairwise Mann-Whitney U between fitness groups on those integrals
+VIP-guided regions → trapezoidal AUC per sample → Mann-Whitney U.
 
 Reference: Movasaghi et al. (2008) Applied Spectroscopy Reviews 43(2), 134-179.
 """

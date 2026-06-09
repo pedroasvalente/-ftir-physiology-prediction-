@@ -17,6 +17,11 @@ results/**/*.joblib
 results/**/*.pt
 results/**/*.pth
 
+# Test / scratch runs — not committed
+results/quick_test/
+results/medium_test/
+results/snv_preproc_test/
+
 # Models
 /models/
 /mlruns/

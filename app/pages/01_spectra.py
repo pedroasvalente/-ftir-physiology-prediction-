@@ -8,6 +8,7 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from app.shared_settings import render_appearance_sidebar
+from ftir_pred.analysis.wavenumber_reference import BAND_ASSIGNMENTS
 
 st.set_page_config(page_title="Spectra", layout="wide")
 st.title("Spectra Visualisation")
@@ -40,9 +41,8 @@ with st.sidebar:
     st.header("Filters")
     matrices = sorted(df["sample_type"].dropna().unique())
     matrix = st.selectbox("Matrix", matrices)
-    has_group = "group_fam" in df.columns
     has_tp = "timepoint" in df.columns
-    colour_options = [c for c in ["group_fam", "timepoint"] if c in df.columns]
+    colour_options = [c for c in ["group", "group_fam", "timepoint"] if c in df.columns]
     colour_by = st.selectbox("Colour by", colour_options) if colour_options else None
     if has_tp:
         all_tps = sorted(df["timepoint"].dropna().unique().tolist())
@@ -51,6 +51,7 @@ with st.sidebar:
         timepoints = []
     show_individual = st.checkbox("Overlay individual spectra", value=False)
     show_sd = st.checkbox("Show ±1 SD band", value=True)
+    show_bands = st.checkbox("Show biochemical band assignments", value=True)
 
 data = df[df["sample_type"] == matrix].copy()
 if timepoints and has_tp:
@@ -78,6 +79,13 @@ def _hex_to_rgba(hex_color: str, alpha: float = 0.15) -> str:
     return f"rgba({r},{g},{b},{alpha})"
 
 
+BAND_COLORS = [
+    "rgba(255,165,0,0.08)", "rgba(65,105,225,0.08)", "rgba(60,179,113,0.08)",
+    "rgba(220,20,60,0.06)", "rgba(186,85,211,0.06)", "rgba(128,128,0,0.08)",
+    "rgba(0,128,128,0.08)", "rgba(255,140,0,0.06)", "rgba(180,180,180,0.06)",
+    "rgba(65,105,225,0.06)", "rgba(60,179,113,0.06)",
+]
+
 fig = go.Figure()
 
 fig.add_vrect(
@@ -88,6 +96,18 @@ fig.add_vrect(
     annotation_font_size=11,
     annotation_font_color="grey",
 )
+
+if show_bands:
+    for i, (lo, hi, band, _) in enumerate(BAND_ASSIGNMENTS):
+        fig.add_vrect(
+            x0=lo, x1=hi,
+            fillcolor=BAND_COLORS[i % len(BAND_COLORS)],
+            line_width=0,
+            annotation_text=band.split("(")[0].strip(),
+            annotation_position="top left",
+            annotation_font_size=7,
+            annotation_font_color="#888",
+        )
 
 mean_records: list[dict] = []
 

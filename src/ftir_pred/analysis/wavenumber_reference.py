@@ -22,11 +22,8 @@ BAND_ASSIGNMENTS: list[tuple[float, float, str, str]] = [
     (1480, 1600, "N–H bend + C–N (Amide II)",    "Proteins (Amide II)"),
     (1600, 1700, "C=O stretch (Amide I)",         "Proteins (Amide I)"),
     (1700, 1800, "C=O stretch (esters / acids)",  "Lipids, fatty acids"),
-    (2500, 2620, "S–H stretch",                   "Thiols / cysteine residues"),
-    (2620, 2800, "Overtone region",               "—"),
     (2800, 2870, "CH₂ symmetric stretch",         "Lipids, fatty acids"),
     (2870, 2960, "CH₃ asymmetric stretch",        "Lipids, proteins"),
-    (2960, 3051, "C–H aromatic / overtone",       "Aromatic amino acids"),
 ]
 
 
