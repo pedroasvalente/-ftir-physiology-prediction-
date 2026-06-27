@@ -41,13 +41,18 @@ group_col   = entry.get("group_column", "vo2max_classes_simplified")
 high_label  = entry.get("high_label", 3.0)
 low_label   = entry.get("low_label",  1.0)
 
+n_high_sp = entry.get("n_high_spectra", n_high)
+n_low_sp  = entry.get("n_low_spectra",  n_low)
 st.markdown(
-    f"**{matrix}** — n_high = {n_high} | n_low = {n_low} | "
+    f"**{matrix}** — High VO₂max: **{n_high} persons** ({n_high_sp} spectra) | "
+    f"Low VO₂max: **{n_low} persons** ({n_low_sp} spectra) | "
     f"significant regions: **{len(sig_regions)}** / {len(all_regions)}"
 )
 st.caption(
     "AUC = trapezoidal integral of absorbance over each VIP-guided spectral region. "
-    "Mann-Whitney U. Movasaghi et al. (2008) Applied Spectroscopy Reviews 43(2), 134–179."
+    "Mann-Whitney U on person-level mean AUC (one observation per participant). "
+    "p-values adjusted with Benjamini-Hochberg FDR correction across regions. "
+    "Movasaghi et al. (2008) Applied Spectroscopy Reviews 43(2), 134–179."
 )
 
 if not all_regions:
@@ -113,9 +118,10 @@ with st.expander("Full-spectrum overview — mean ± SD (high vs low VO₂max)",
                    showgrid=True, gridcolor="#e5e5e5"),
         yaxis=dict(title="Absorbance (a.u.)", showgrid=True, gridcolor="#e5e5e5"),
         plot_bgcolor="white", paper_bgcolor="white",
+        font=dict(color="#222"),
         height=380, hovermode="x unified",
         margin=dict(l=60, r=20, t=30, b=60),
-        legend=dict(font=dict(size=10)),
+        legend=dict(font=dict(size=10, color="#222")),
     )
     st.plotly_chart(fig_full, use_container_width=True)
     st.caption("Solid = High VO₂max · Dashed = Low VO₂max · Shading = ± 1 SD")
@@ -129,16 +135,18 @@ reg_df = pd.DataFrame([{
     "Biochemical origin":   r["biochemical_origin"],
     "Median high":          round(r.get("median_high", float("nan")), 5),
     "Median low":           round(r.get("median_low",  float("nan")), 5),
-    "p-value":              round(r.get("p_value", 1.0), 4),
+    "p-value (raw)":        round(r.get("p_value", 1.0), 4),
+    "p-value (BH adj)":     round(r.get("p_value_adj", r.get("p_value", 1.0)), 4),
     "sig":                  r.get("sig", ""),
 } for r in all_regions])
 
 st.dataframe(
     reg_df.style.format({
-        "max VIP":     "{:.3f}",
-        "Median high": "{:.5f}",
-        "Median low":  "{:.5f}",
-        "p-value":     "{:.4f}",
+        "max VIP":          "{:.3f}",
+        "Median high":      "{:.5f}",
+        "Median low":       "{:.5f}",
+        "p-value (raw)":    "{:.4f}",
+        "p-value (BH adj)": "{:.4f}",
     }, na_rep="—").background_gradient(subset=["max VIP"], cmap="Reds"),
     use_container_width=True,
     hide_index=True,
@@ -239,7 +247,7 @@ for row_i in range((len(sig_regions) + 1) // 2):
                 marker=dict(color=color, size=4, opacity=0.7),
             ), row=1, col=2)
 
-        p      = reg.get("p_value", 1.0)
+        p      = reg.get("p_value_adj", reg.get("p_value", 1.0))
         sig_lbl = reg.get("sig", "")
         all_aucs = np.concatenate([aucs_high, aucs_low])
         y_top = float(np.percentile(all_aucs, 99))
@@ -272,17 +280,18 @@ for row_i in range((len(sig_regions) + 1) // 2):
             title=dict(
                 text=(
                     f"<b>Zone {letter}  ·  {reg['label']}  ·  {reg['band_assignment']}</b><br>"
-                    f"<span style='font-size:10px;color:#666'>{reg['biochemical_origin']}</span>"
+                    f"<span style='font-size:10px;color:#555'>{reg['biochemical_origin']}</span>"
                 ),
-                font=dict(size=13), x=0.5, xanchor="center",
+                font=dict(size=13, color="#222"), x=0.5, xanchor="center",
             ),
             height=330, margin=dict(t=75, b=45, l=60, r=20),
             paper_bgcolor="white", plot_bgcolor="white",
+            font=dict(color="#222"),
             violingap=0.25, violingroupgap=0.1,
             legend=dict(
                 x=0.01, y=0.99, xanchor="left", yanchor="top",
                 bgcolor="rgba(255,255,255,0.75)", bordercolor="#ddd",
-                borderwidth=1, font=dict(size=10),
+                borderwidth=1, font=dict(size=10, color="#222"),
             ),
         )
         cols[col_j].plotly_chart(fig, use_container_width=True)

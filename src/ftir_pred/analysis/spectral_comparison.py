@@ -84,6 +84,22 @@ def _region_aucs(X: np.ndarray, wavenumbers: np.ndarray, lo: float, hi: float) -
     return np.array([np.abs(trapezoid(X_s[k], wn_s)) for k in range(X.shape[0])])
 
 
+def _bh_correct(p_values: list[float]) -> list[float]:
+    """Benjamini-Hochberg FDR correction. Returns adjusted p-values."""
+    n = len(p_values)
+    if n == 0:
+        return []
+    order = np.argsort(p_values)
+    p_arr = np.array(p_values)
+    p_adj = np.empty(n)
+    cummin = np.inf
+    for k in range(n - 1, -1, -1):
+        i = order[k]
+        cummin = min(cummin, p_arr[i] * n / (k + 1))
+        p_adj[i] = min(cummin, 1.0)
+    return p_adj.tolist()
+
+
 def compare_groups(
     X: np.ndarray,
     wavenumbers: np.ndarray,
@@ -91,6 +107,7 @@ def compare_groups(
     group_labels: np.ndarray,
     high_label,
     low_label,
+    person_codes: np.ndarray | None = None,
     top_pct: float = 20.0,
     min_consecutive: int = 5,
 ) -> tuple[list[dict], list[dict]]:
@@ -99,10 +116,23 @@ def compare_groups(
 
     for reg in regions:
         lo, hi = reg["lo"], reg["hi"]
-        aucs = _region_aucs(X, wavenumbers, lo, hi)
+        aucs_all = _region_aucs(X, wavenumbers, lo, hi)
 
-        high_aucs = aucs[group_labels == high_label]
-        low_aucs  = aucs[group_labels == low_label]
+        if person_codes is not None:
+            # Aggregate to person level: mean AUC per person — avoids pseudo-replication
+            # from repeated spectra of the same individual.
+            import pandas as pd
+            tmp = pd.DataFrame({
+                "person": person_codes,
+                "group":  group_labels,
+                "auc":    aucs_all,
+            })
+            agg = tmp.groupby(["person", "group"])["auc"].mean().reset_index()
+            high_aucs = agg.loc[agg["group"] == high_label, "auc"].values
+            low_aucs  = agg.loc[agg["group"] == low_label,  "auc"].values
+        else:
+            high_aucs = aucs_all[group_labels == high_label]
+            low_aucs  = aucs_all[group_labels == low_label]
 
         if len(high_aucs) < 3 or len(low_aucs) < 3:
             continue
@@ -110,15 +140,24 @@ def compare_groups(
         _, p = mannwhitneyu(high_aucs, low_aucs, alternative="two-sided")
         results.append({
             **reg,
-            "n_high": len(high_aucs),
-            "n_low":  len(low_aucs),
+            "n_high":      len(high_aucs),
+            "n_low":       len(low_aucs),
             "median_high": float(np.median(high_aucs)),
             "median_low":  float(np.median(low_aucs)),
-            "p_value": float(p),
-            "sig": _sig(p),
-            "aucs_high": high_aucs.tolist(),
-            "aucs_low":  low_aucs.tolist(),
+            "p_value":     float(p),
+            "p_value_adj": None,  # filled below after BH correction
+            "sig":         "",    # filled below
+            "aucs_high":   high_aucs.tolist(),
+            "aucs_low":    low_aucs.tolist(),
         })
+
+    # Benjamini-Hochberg FDR correction across all regions within this matrix
+    if results:
+        p_raw = [r["p_value"] for r in results]
+        p_adj = _bh_correct(p_raw)
+        for r, pa in zip(results, p_adj):
+            r["p_value_adj"] = float(pa)
+            r["sig"] = _sig(pa)
 
     sig_only = [r for r in results if r["sig"] != "ns"]
     return results, sig_only
@@ -173,7 +212,8 @@ def run_spectral_comparison(
     valid_rows = sub[group_column].notna() & sub[ftir_cols].notna().all(axis=1)
     sub = sub[valid_rows]
     X = sub[ftir_cols].values.astype(float)
-    group_arr = sub[group_column].values
+    group_arr   = sub[group_column].values
+    person_arr  = sub["person_code"].values if "person_code" in sub.columns else None
 
     vip_imp = _load_best_vip(sample_type, wavenumbers, vip_file)
     if vip_imp is None:
@@ -190,19 +230,31 @@ def run_spectral_comparison(
     all_regions, sig_regions = compare_groups(
         X, wavenumbers, vip_imp, group_arr,
         high_label=high_label, low_label=low_label,
+        person_codes=person_arr,
         top_pct=top_pct, min_consecutive=min_consecutive,
     )
 
+    import pandas as pd
+    if person_arr is not None:
+        tmp = pd.DataFrame({"person": person_arr, "group": group_arr})
+        n_high_persons = int(tmp[tmp["group"] == high_label]["person"].nunique())
+        n_low_persons  = int(tmp[tmp["group"] == low_label]["person"].nunique())
+    else:
+        n_high_persons = int((group_arr == high_label).sum())
+        n_low_persons  = int((group_arr == low_label).sum())
+
     return {
-        "sample_type":   sample_type,
-        "n_high":        int((group_arr == high_label).sum()),
-        "n_low":         int((group_arr == low_label).sum()),
-        "all_regions":   all_regions,
-        "sig_regions":   sig_regions,
-        "group_column":  group_column,
-        "high_label":    high_label,
-        "low_label":     low_label,
-        "wavenumbers":   wavenumbers.tolist(),
+        "sample_type":    sample_type,
+        "n_high":         n_high_persons,
+        "n_low":          n_low_persons,
+        "n_high_spectra": int((group_arr == high_label).sum()),
+        "n_low_spectra":  int((group_arr == low_label).sum()),
+        "all_regions":    all_regions,
+        "sig_regions":    sig_regions,
+        "group_column":   group_column,
+        "high_label":     high_label,
+        "low_label":      low_label,
+        "wavenumbers":    wavenumbers.tolist(),
     }
 
 
