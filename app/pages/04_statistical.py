@@ -45,23 +45,22 @@ for k, v in pred_data.items():
     })
 idx_df = pd.DataFrame(idx_rows)
 
-with st.sidebar:
-    st.header("Filters")
-    all_targets = sorted(idx_df["target"].dropna().unique())
-    sel_target  = st.selectbox("Target", all_targets)
+all_targets = sorted(idx_df["target"].dropna().unique())
+_fc1, _fc2, _fc3 = st.columns(3)
+sel_target = _fc1.selectbox("Target", all_targets)
 
-    matrices_for_target = sorted(
-        idx_df.loc[idx_df["target"] == sel_target, "sample_type"].dropna().unique()
-    )
-    sel_matrix = st.selectbox("Matrix", matrices_for_target)
+matrices_for_target = sorted(
+    idx_df.loc[idx_df["target"] == sel_target, "sample_type"].dropna().unique()
+)
+sel_matrix = _fc2.selectbox("Matrix", matrices_for_target)
 
-    models_for_combo = sorted(
-        idx_df.loc[
-            (idx_df["target"] == sel_target) & (idx_df["sample_type"] == sel_matrix),
-            "model",
-        ].dropna().unique()
-    )
-    sel_model = st.selectbox("Model", models_for_combo)
+models_for_combo = sorted(
+    idx_df.loc[
+        (idx_df["target"] == sel_target) & (idx_df["sample_type"] == sel_matrix),
+        "model",
+    ].dropna().unique()
+)
+sel_model = _fc3.selectbox("Model", models_for_combo)
 
 # ── Resolve entry ──────────────────────────────────────────────────────────────
 match = idx_df.loc[

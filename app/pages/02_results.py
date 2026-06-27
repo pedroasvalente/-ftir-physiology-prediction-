@@ -70,7 +70,10 @@ with tab_heatmap:
 
     cscale = "RdYlGn" if metric == "r2" else "RdYlGn_r"
     vmin   = 0 if metric == "r2" else None
-    vmax   = 1 if metric == "r2" else None
+    # Dynamic upper bound: show real spread, not washed out by 0–1 scale
+    raw_max = float(best[metric].max()) if not best.empty else 0.5
+    import math
+    vmax = math.ceil(raw_max * 10) / 10 if metric == "r2" else None
 
     fig = px.imshow(
         pivot, color_continuous_scale=cscale,
@@ -81,7 +84,8 @@ with tab_heatmap:
     fig.update_layout(height=max(500, 18 * len(pivot)), margin=dict(l=10, r=10, t=30, b=40))
     st.plotly_chart(fig, use_container_width=True)
 
-    st.caption("Targets ordered by physiological group. Best run per (target, matrix) combination.")
+    note = f"Scale: 0 – {vmax:.1f} (observed max = {raw_max:.3f}). " if metric == "r2" else ""
+    st.caption(f"{note}Targets ordered by physiological group. Best run per (target, matrix) combination.")
 
 # ── Top results ───────────────────────────────────────────────────────────────
 with tab_top:

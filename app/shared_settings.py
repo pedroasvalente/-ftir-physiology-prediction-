@@ -37,6 +37,50 @@ TARGET_GROUP_COLORS = {
     "hormonal":          "#8073ac",
 }
 
+TARGET_DISPLAY_NAMES: dict[str, str] = {
+    # Cardiorespiratory
+    "vo2max_absolute":                   "VO₂max (L/min)",
+    "vo2max_relative":                   "VO₂max (mL/kg/min)",
+    "vo2max_bpm":                        "VO₂max HR (bpm)",
+    "anaerobicthreshold_absolute":       "Anaerobic threshold (L/min)",
+    "anaerobicthreshold_relative":       "Anaerobic threshold (mL/kg/min)",
+    "anaerobicthreshold_bpm":            "Anaerobic threshold (bpm)",
+    "respiratorycompensation_absolute":  "Resp. compensation (L/min)",
+    "respiratorycompensation_relative":  "Resp. compensation (mL/kg/min)",
+    "respiratorycompensation_bpm":       "Resp. compensation (bpm)",
+    # Body composition
+    "bodyweight_kg":  "Body weight (kg)",
+    "bodyfat_kg":     "Body fat (kg)",
+    "bodyfat_perc":   "Body fat (%)",
+    "ffm_kg":         "Fat-free mass (kg)",
+    "ffm_%":          "Fat-free mass (%)",
+    "h2o_L":          "Total body water (L)",
+    "h20_perc":       "Total body water (%)",
+    # CBC
+    "erythrocytes":   "Erythrocytes",
+    "hemoglobine":    "Haemoglobin",
+    "hematocrit":     "Haematocrit",
+    "mgv":            "MCV",
+    "mch":            "MCH",
+    "mchc":           "MCHC",
+    "rdw":            "RDW",
+    "leukocytes":     "Leukocytes (WBC)",
+    "neutrophiles":   "Neutrophils",
+    "eosinophils":    "Eosinophils",
+    "basophils":      "Basophils",
+    "lymphocytes":    "Lymphocytes",
+    "monocytes":      "Monocytes",
+    "platetes":       "Platelets",
+    # Hormonal
+    "salivarycortisol":     "Salivary cortisol",
+    "salivarytestosterone": "Salivary testosterone",
+    "il_10":                "IL-10",
+}
+
+
+def fmt_target(name: str) -> str:
+    return TARGET_DISPLAY_NAMES.get(name, name.replace("_", " ").title())
+
 
 def _init_defaults():
     if "matrix_colors" not in st.session_state:

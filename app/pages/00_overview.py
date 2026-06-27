@@ -9,11 +9,11 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from app.shared_settings import (
-    DEFAULT_GROUP_COLORS, TARGET_GROUP_COLORS,
+    DEFAULT_GROUP_COLORS,
     render_appearance_sidebar, render_data_sidebar,
 )
 from ftir_pred.config import TRAINING_DATA_PATH
-from ftir_pred.data.config import REGRESSION_TARGETS, SAMPLE_TYPES, get_target_group
+from ftir_pred.data.config import REGRESSION_TARGETS, SAMPLE_TYPES
 from ftir_pred.data.loader import get_ftir_columns, load_csv
 
 st.set_page_config(page_title="Overview", layout="wide")
@@ -76,12 +76,12 @@ with col_left:
     st.plotly_chart(fig, use_container_width=True)
 
 with col_right:
-    st.subheader("Samples × subgroup × timepoint")
-    if {"sample_type", "group", "timepoint"}.issubset(df.columns):
+    st.subheader("Samples × sport family × timepoint")
+    if {"sample_type", "group_fam", "timepoint"}.issubset(df.columns):
         pivot = (
-            df.groupby(["sample_type", "group", "timepoint"])
+            df.groupby(["sample_type", "group_fam", "timepoint"])
             .size().reset_index(name="n")
-            .pivot_table(index=["sample_type", "group"],
+            .pivot_table(index=["sample_type", "group_fam"],
                          columns="timepoint", values="n", fill_value=0)
         )
         pivot.columns = [f"T{c}" for c in pivot.columns]
@@ -103,14 +103,15 @@ demo_cols = {
 }
 avail_demo = {k: v for k, v in demo_cols.items() if k in df.columns}
 
-if avail_demo and "group" in df.columns:
+if avail_demo and "group_fam" in df.columns:
     rows = []
-    for grp, sub in df.groupby("group"):
-        unique_in_grp = sub.drop_duplicates("person_code")
-        grp_fam = sub["group_fam"].iloc[0].title() if "group_fam" in sub.columns else grp
-        entry = {"Subgroup": grp, "Family": grp_fam, "n": len(unique_in_grp)}
+    for grp_fam, sub_fam in df.groupby("group_fam"):
+        # unique participants per family: person_code is reused across subgroups,
+        # so deduplicate on (group, person_code)
+        unique_persons = sub_fam.drop_duplicates(["group", "person_code"])
+        entry = {"Group": grp_fam.title(), "n": len(unique_persons)}
         for col, label in avail_demo.items():
-            vals = unique_in_grp[col].dropna()
+            vals = unique_persons[col].dropna()
             if len(vals) == 0:
                 entry[label] = "—"
             elif len(vals) == 1:
@@ -119,39 +120,10 @@ if avail_demo and "group" in df.columns:
                 entry[label] = f"{vals.mean():.1f} ± {vals.std():.1f}"
         rows.append(entry)
     st.dataframe(
-        pd.DataFrame(rows).set_index("Subgroup"),
+        pd.DataFrame(rows).set_index("Group"),
         use_container_width=True,
     )
-    st.caption("F1/F2 = football cohorts · G1/G2/G3 = sedentary cohorts (independent, person_code reused) · U1 = ultrarunning")
-
-st.divider()
-
-# ── Target variables by group ─────────────────────────────────────────────────
-st.subheader("Target variables by physiological group")
-
-tg_map = {t: get_target_group(t) for t in REGRESSION_TARGETS}
-tg_counts = pd.Series(tg_map).value_counts().reset_index()
-tg_counts.columns = ["group", "n_targets"]
-
-col_a, col_b = st.columns([1, 2])
-with col_a:
-    fig_tg = px.pie(
-        tg_counts, names="group", values="n_targets",
-        color="group", color_discrete_map=TARGET_GROUP_COLORS,
-        hole=0.4,
-    )
-    fig_tg.update_layout(height=280, margin=dict(t=10, b=10, l=10, r=10),
-                         showlegend=True, legend=dict(orientation="v"))
-    st.plotly_chart(fig_tg, use_container_width=True)
-
-with col_b:
-    rows = []
-    for tg in sorted(tg_counts["group"]):
-        targets_in_group = [t for t, g in tg_map.items() if g == tg]
-        rows.append({"Physiological group": tg.replace("_", " ").title(),
-                     "n": len(targets_in_group),
-                     "Variables": ", ".join(targets_in_group[:6]) + ("…" if len(targets_in_group) > 6 else "")})
-    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    st.caption("Football = F1 + F2 · Sedentary = G1 + G2 + G3 (person_code independent across cohorts) · Ultrarunning = U1")
 
 st.divider()
 

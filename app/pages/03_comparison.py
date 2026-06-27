@@ -20,14 +20,15 @@ if df is None or df.empty:
 
 METRIC_COLS = [c for c in ["r2", "rmse", "mae", "pearson_r"] if c in df.columns and df[c].notna().any()]
 
+_fc1, _fc2, _fc3 = st.columns([1, 1, 2])
+matrix = _fc1.selectbox("Matrix", SAMPLE_TYPES)
+if "timepoints" in df.columns:
+    tp_opts = sorted(df["timepoints"].fillna("all").unique())
+    timepoints = _fc2.selectbox("Timepoints", tp_opts)
+else:
+    timepoints = None
+
 with st.sidebar:
-    st.header("Filters")
-    matrix = st.selectbox("Matrix", SAMPLE_TYPES)
-    if "timepoints" in df.columns:
-        tp_opts = sorted(df["timepoints"].fillna("all").unique())
-        timepoints = st.selectbox("Timepoints", tp_opts)
-    else:
-        timepoints = None
     r2_clip = st.slider("Clip R² below", min_value=-5.0, max_value=0.0, value=-1.0, step=0.5)
 
 sub = df[df["sample_type"] == matrix].copy()
@@ -46,66 +47,61 @@ best_per_model = (
     .groupby("model").first().reset_index()
 )
 
-# ── Radar ─────────────────────────────────────────────────────────────────────
-st.subheader(f"Performance radar — {matrix}")
+# ── Win rate — which model ranks 1st most often? ──────────────────────────────
+st.subheader(f"Model win rate — {matrix}")
+st.caption("% of (target × timepoint) combinations where each model achieves the highest R²")
 
-radar_metrics = [c for c in ["r2", "pearson_r"] if c in best_per_model.columns]
-if radar_metrics and not best_per_model.empty:
-    fig_radar = go.Figure()
-    for _, row in best_per_model.iterrows():
-        model = str(row["model"])
-        vals = [max(0, float(row[m])) if pd.notna(row.get(m)) else 0.0 for m in radar_metrics]
-        vals += [vals[0]]
-        fig_radar.add_trace(go.Scatterpolar(
-            r=vals, theta=radar_metrics + [radar_metrics[0]],
-            name=model,
-            line=dict(color=model_colors.get(model, "#999"), width=2),
-            fill="toself",
-            fillcolor=model_colors.get(model, "#999"),
-            opacity=0.15,
-        ))
-    fig_radar.update_layout(
-        polar=dict(radialaxis=dict(visible=True, range=[0, 1])),
-        height=420,
-        title=f"{matrix} — model comparison",
+if not ml_only.empty and "r2" in ml_only.columns:
+    _win_df = ml_only.copy()
+    if "timepoints" in _win_df.columns:
+        _win_df["timepoints"] = _win_df["timepoints"].fillna("all")
+    best_per_combo = (
+        _win_df.sort_values("r2", ascending=False)
+        .groupby(["target"] + (["timepoints"] if "timepoints" in _win_df.columns else []))
+        .first()
+        .reset_index()
     )
-    st.plotly_chart(fig_radar, use_container_width=True)
+    total_combos = len(best_per_combo)
+    wins = (
+        best_per_combo.groupby("model").size()
+        .reset_index(name="wins")
+    )
+    wins["win_pct"] = wins["wins"] / total_combos * 100
+    wins = wins.sort_values("win_pct", ascending=False)
 
-# ── Metric bars ───────────────────────────────────────────────────────────────
-st.subheader("Metrics by model — best run each")
-col_bar, col_scatter = st.columns(2)
+    fig_wins = px.bar(
+        wins, x="model", y="win_pct",
+        color="model", color_discrete_map=model_colors,
+        text_auto=".0f",
+        labels={"win_pct": "Best model (%)", "model": "Model"},
+    )
+    fig_wins.update_traces(texttemplate="%{y:.0f}%", textposition="outside")
+    fig_wins.update_layout(
+        height=340, showlegend=False,
+        plot_bgcolor="white", paper_bgcolor="white",
+        yaxis=dict(title="% target combos won", range=[0, 100],
+                   showgrid=True, gridcolor="#e5e5e5"),
+        margin=dict(t=20, b=50, l=60, r=20),
+    )
+    st.plotly_chart(fig_wins, use_container_width=True)
 
-with col_bar:
-    melted = best_per_model.melt(id_vars="model", value_vars=METRIC_COLS,
-                                  var_name="metric", value_name="value")
-    fig_bar = px.bar(
-        melted, x="metric", y="value", color="model",
-        barmode="group",
-        labels={"value": "Score", "metric": "Metric"},
+# ── R² vs RMSE scatter ────────────────────────────────────────────────────────
+st.subheader("R² vs RMSE — all runs")
+if "rmse" in ml_only.columns:
+    fig_sc = px.scatter(
+        ml_only, x="rmse", y="r2",
+        color="model", symbol="model",
         color_discrete_map=model_colors,
-        text_auto=".3f",
+        hover_data=[c for c in ["target", "model", "timepoints"] if c in ml_only.columns],
+        labels={"rmse": "RMSE", "r2": "R²"},
     )
-    fig_bar.update_layout(height=360, plot_bgcolor="white", paper_bgcolor="white",
-                          yaxis=dict(showgrid=True, gridcolor="#e5e5e5"))
-    st.plotly_chart(fig_bar, use_container_width=True)
-
-with col_scatter:
-    st.subheader("R² vs RMSE — all runs")
-    if "rmse" in ml_only.columns:
-        fig_sc = px.scatter(
-            ml_only, x="rmse", y="r2",
-            color="model", symbol="model",
-            color_discrete_map=model_colors,
-            hover_data=[c for c in ["target", "model", "timepoints"] if c in ml_only.columns],
-            labels={"rmse": "RMSE", "r2": "R²"},
-        )
-        fig_sc.add_hline(y=0.3, line_dash="dot", line_color="gray", opacity=0.6,
-                         annotation_text="R²=0.30")
-        fig_sc.update_traces(marker_size=7, opacity=0.8)
-        fig_sc.update_layout(height=360, plot_bgcolor="white", paper_bgcolor="white",
-                             xaxis=dict(showgrid=True, gridcolor="#e5e5e5"),
-                             yaxis=dict(showgrid=True, gridcolor="#e5e5e5"))
-        st.plotly_chart(fig_sc, use_container_width=True)
+    fig_sc.add_hline(y=0.3, line_dash="dot", line_color="gray", opacity=0.6,
+                     annotation_text="R²=0.30")
+    fig_sc.update_traces(marker_size=7, opacity=0.8)
+    fig_sc.update_layout(height=380, plot_bgcolor="white", paper_bgcolor="white",
+                         xaxis=dict(showgrid=True, gridcolor="#e5e5e5"),
+                         yaxis=dict(showgrid=True, gridcolor="#e5e5e5"))
+    st.plotly_chart(fig_sc, use_container_width=True)
 
 # ── ML vs baseline ────────────────────────────────────────────────────────────
 st.subheader("ML vs baseline — R² distribution")

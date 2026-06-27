@@ -30,9 +30,7 @@ with open(json_path) as f:
 if not data:
     st.stop()
 
-with st.sidebar:
-    st.header("Filters")
-    matrix = st.selectbox("Matrix", sorted(data.keys()))
+matrix = st.selectbox("Matrix", sorted(data.keys()))
 
 entry = data[matrix]
 all_regions = entry.get("all_regions", [])
