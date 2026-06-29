@@ -27,7 +27,7 @@ def filter_samples(
     Return (X_ftir, y, groups) for the given sample_type and target.
     Returns None if there are too few valid samples.
 
-    groups is the person_code column — used for person-aware splits.
+    groups is group + person_code (globally unique person id) — used for person-aware splits.
     """
     data = df[df["sample_type"] == sample_type].copy()
 
@@ -40,7 +40,7 @@ def filter_samples(
     ftir_cols = get_ftir_columns(df)
     X = data[ftir_cols]
     y = data[target]
-    groups = data["person_code"]
+    groups = data["group"] + "_" + data["person_code"]
 
     valid = y.notna() & X.notna().all(axis=1) & (X != 0).any(axis=1)
     X, y, groups = X[valid], y[valid], groups[valid]

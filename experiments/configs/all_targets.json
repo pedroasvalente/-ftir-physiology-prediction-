@@ -1,6 +1,6 @@
 {
     "experiment_name": "FTIR Physiology Prediction",
-    "run_name": "study_regression_v1",
+    "run_name": "study_regression_v2",
     "targets_to_predict": [
         "vo2max_absolute", "vo2max_relative", "vo2max_bpm",
         "anaerobicthreshold_absolute", "anaerobicthreshold_relative", "anaerobicthreshold_bpm",

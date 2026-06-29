@@ -20,7 +20,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--matrices", nargs="+",
                         default=["CAPILAR", "PLASMA", "SALIVA", "SERUM", "URINE"])
-    parser.add_argument("--timepoints", nargs="+", type=int, default=None)
+    parser.add_argument("--timepoints", nargs="+", type=int, default=[1])
     parser.add_argument("--top-pct",    type=float, default=20.0)
     parser.add_argument("--min-pts",    type=int,   default=5)
     parser.add_argument("--out-dir",    default=str(RESULTS_DIR / "spectral_comparison"))

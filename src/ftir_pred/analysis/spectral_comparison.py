@@ -213,7 +213,7 @@ def run_spectral_comparison(
     sub = sub[valid_rows]
     X = sub[ftir_cols].values.astype(float)
     group_arr   = sub[group_column].values
-    person_arr  = sub["person_code"].values if "person_code" in sub.columns else None
+    person_arr  = (sub["group"] + "_" + sub["person_code"]).values if "person_code" in sub.columns else None
 
     vip_imp = _load_best_vip(sample_type, wavenumbers, vip_file)
     if vip_imp is None:
