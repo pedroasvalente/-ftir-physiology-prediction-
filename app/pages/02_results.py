@@ -151,10 +151,13 @@ with tab_dist:
                                   yaxis=dict(showgrid=True, gridcolor="#e5e5e5"))
             st.plotly_chart(fig_grp, use_container_width=True)
 
-    st.subheader("Cross-matrix summary — best model per matrix")
+    st.subheader("Cross-matrix summary — best model per matrix (all timepoints)")
+    df_all_tp = df[~df["is_baseline"].astype(bool)].copy() if "is_baseline" in df.columns else df.copy()
+    if sel_groups and "target_group" in df_all_tp.columns:
+        df_all_tp = df_all_tp[df_all_tp["target_group"].isin(sel_groups)]
     rows = []
     for mat in SAMPLE_TYPES:
-        sub = filtered[filtered["sample_type"] == mat]
+        sub = df_all_tp[df_all_tp["sample_type"] == mat]
         if sub.empty:
             continue
         row = sub.loc[sub[metric].idxmax()]

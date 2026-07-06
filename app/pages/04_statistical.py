@@ -19,17 +19,16 @@ df = render_data_sidebar()
 if df is None or df.empty:
     st.stop()
 
-pred_files = sorted(RESULTS_DIR.rglob("predictions_data.json"))
-if not pred_files:
+pred_file = RESULTS_DIR / "study_regression_v2" / "predictions_data.json"
+if not pred_file.exists():
     st.info("No predictions_data.json found. Run a training experiment first.")
     st.stop()
 
 pred_data: dict = {}
-for f in pred_files:
-    try:
-        pred_data.update(json.loads(f.read_text()))
-    except Exception:
-        pass
+try:
+    pred_data = json.loads(pred_file.read_text())
+except Exception:
+    pass
 
 if not pred_data:
     st.stop()

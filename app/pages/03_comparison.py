@@ -120,12 +120,10 @@ if "is_baseline" in sub.columns:
     st.plotly_chart(fig_base, use_container_width=True)
 
 # ── Cross-matrix summary ──────────────────────────────────────────────────────
-st.subheader("Cross-matrix summary — best R² per matrix")
+st.subheader("Cross-matrix summary — best R² per matrix (all timepoints)")
 rows = []
 for mat in SAMPLE_TYPES:
     sub_mat = df[df["sample_type"] == mat].copy()
-    if timepoints is not None and "timepoints" in sub_mat.columns:
-        sub_mat = sub_mat[sub_mat["timepoints"].fillna("all") == timepoints]
     ml_mat = sub_mat[~sub_mat["is_baseline"].astype(bool)] if "is_baseline" in sub_mat.columns else sub_mat
     if ml_mat.empty:
         continue

@@ -150,21 +150,14 @@ def _render_run_info(df: pd.DataFrame, run_label: str):
                 )
 
 
+V2_CSV = RESULTS_DIR / "study_regression_v2" / "results_summary.csv"
+
+
 @st.cache_data(ttl=300)
-def _load_all_results(results_dir: str) -> pd.DataFrame:
-    base = Path(results_dir)
-    csv_files = sorted(base.rglob("results_summary.csv"))
-    frames = []
-    for f in csv_files:
-        try:
-            sub = pd.read_csv(f)
-            sub["run"] = f.parent.name
-            frames.append(sub)
-        except Exception:
-            continue
-    if not frames:
+def _load_v2_results() -> pd.DataFrame:
+    if not V2_CSV.exists():
         return pd.DataFrame()
-    df = pd.concat(frames, ignore_index=True)
+    df = pd.read_csv(V2_CSV)
     for col in ["r2", "rmse", "mae", "mape", "pearson_r", "pearson_p"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
@@ -177,21 +170,12 @@ def render_data_sidebar() -> pd.DataFrame | None:
     _init_defaults()
     with st.sidebar:
         st.header("Data")
-        df_all = _load_all_results(str(RESULTS_DIR))
-        if df_all.empty:
+        df = _load_v2_results()
+        if df.empty:
             st.error("No results found. Run a training experiment first.")
             _sidebar_footer()
             return None
 
-        runs = sorted(df_all["run"].unique()) if "run" in df_all.columns else []
-        if runs:
-            sel = st.selectbox("Run", ["All"] + runs)
-            df = df_all[df_all["run"] == sel].copy() if sel != "All" else df_all
-            run_label = sel
-        else:
-            df = df_all
-            run_label = "All runs"
-
-    _render_run_info(df, run_label)
+    _render_run_info(df, "study_regression_v2")
     _sidebar_footer()
     return df
